@@ -89,7 +89,8 @@ const options = {
       { name: 'Categories', description: 'Управління категоріями' },
       { name: 'Orders', description: 'Управління замовленнями' },
       { name: 'Reviews', description: 'Відгуки' },
-      { name: 'Files', description: 'Завантаження файлів' }
+      { name: 'Files', description: 'Завантаження файлів' },
+      { name: 'Notifications', description: 'Сповіщення користувачів' }
     ]
   },
   apis: ['./src/routes/*.js']

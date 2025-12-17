@@ -8,6 +8,7 @@ const productRoutes = require('./productRoutes');
 const userRoutes = require('./userRoutes');
 const orderRoutes = require('./orderRoutes');
 const reviewRoutes = require('./reviewRoutes');
+const notificationRoutes = require('./notificationRoutes');
 
 // Маршрути
 router.use('/auth', authRoutes);
@@ -17,6 +18,7 @@ router.use('/products', productRoutes);
 router.use('/users', userRoutes);
 router.use('/orders', orderRoutes);
 router.use('/reviews', reviewRoutes);
+router.use('/notifications', notificationRoutes);
 
 // Інформація про API
 router.get('/', (req, res) => {
@@ -25,6 +27,7 @@ router.get('/', (req, res) => {
     version: '1.0.0',
     description: 'API для платформи продажу вінтажного одягу',
     documentation: '/api-docs',
+    websocket: 'ws://localhost:3000',
     endpoints: {
       auth: '/api/auth',
       users: '/api/users',
@@ -32,7 +35,8 @@ router.get('/', (req, res) => {
       categories: '/api/categories',
       orders: '/api/orders',
       reviews: '/api/reviews',
-      files: '/api/files'
+      files: '/api/files',
+      notifications: '/api/notifications'
     }
   });
 });

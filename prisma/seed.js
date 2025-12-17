@@ -7,6 +7,7 @@ async function main() {
   console.log('🌱 Заповнення бази даних...');
 
   // Очищення
+  await prisma.notification.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.review.deleteMany();
@@ -167,6 +168,26 @@ async function main() {
   // Улюблене
   await prisma.favorite.create({
     data: { userId: buyer.id, productId: product2.id }
+  });
+
+  // Тестові сповіщення
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: buyer.id,
+        type: 'SYSTEM',
+        title: 'Ласкаво просимо!',
+        message: 'Дякуємо за реєстрацію на Vintage Clothing Platform',
+        priority: 'NORMAL'
+      },
+      {
+        userId: seller.id,
+        type: 'SYSTEM',
+        title: 'Ваш магазин активовано',
+        message: 'Тепер ви можете додавати товари на продаж',
+        priority: 'HIGH'
+      }
+    ]
   });
 
   console.log('✅ База даних заповнена!');

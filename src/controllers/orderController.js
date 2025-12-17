@@ -1,6 +1,8 @@
 const prisma = require('../config/database');
 const ApiResponse = require('../utils/apiResponse');
 const { generateOrderNumber, getPagination, getPaginationMeta } = require('../utils/helpers');
+const notificationService = require('../socket/notificationService');
+const socketEvents = require('../socket/events');
 
 const orderController = {
   async getAll(req, res, next) {
@@ -11,6 +13,11 @@ const orderController = {
       const where = {};
       if (status) where.status = status;
       if (userId) where.userId = parseInt(userId);
+
+      // Якщо не адмін - показуємо тільки свої замовлення
+      if (req.user && req.user.role !== 'ADMIN') {
+        where.userId = req.user.userId;
+      }
 
       const [orders, total] = await Promise.all([
         prisma.order.findMany({
@@ -60,7 +67,8 @@ const orderController = {
 
       const productIds = items.map(item => item.productId);
       const products = await prisma.product.findMany({
-        where: { id: { in: productIds }, status: 'ACTIVE' }
+        where: { id: { in: productIds }, status: 'ACTIVE' },
+        include: { seller: { select: { id: true } } }
       });
 
       if (products.length !== items.length) {
@@ -88,10 +96,27 @@ const orderController = {
         include: { items: { include: { product: { select: { id: true, title: true } } } }, address: true }
       });
 
+      // Оновлюємо статус товарів
       await prisma.product.updateMany({
         where: { id: { in: productIds } },
         data: { status: 'SOLD' }
       });
+
+      // 🔔 Real-time: сповіщення продавцям
+      const sellerIds = [...new Set(products.map(p => p.seller.id))];
+      for (const sellerId of sellerIds) {
+        socketEvents.newOrder(order, sellerId);
+        await notificationService.send(
+          sellerId,
+          'ORDER_STATUS',
+          'Нове замовлення!',
+          `Отримано нове замовлення #${order.orderNumber}`,
+          { orderId: order.id, orderNumber: order.orderNumber }
+        );
+      }
+
+      // 🔔 Real-time: товари продано
+      products.forEach(p => socketEvents.productSold(p));
 
       return ApiResponse.created(res, order, 'Замовлення створено');
     } catch (error) {
@@ -104,16 +129,31 @@ const orderController = {
       const { id } = req.params;
       const { status, paymentStatus } = req.body;
 
+      const order = await prisma.order.findUnique({
+        where: { id: parseInt(id) }
+      });
+
+      if (!order) {
+        return ApiResponse.notFound(res, 'Замовлення не знайдено');
+      }
+
       const updateData = {};
       if (status) updateData.status = status;
       if (paymentStatus) updateData.paymentStatus = paymentStatus;
 
-      const order = await prisma.order.update({
+      const updatedOrder = await prisma.order.update({
         where: { id: parseInt(id) },
-        data: updateData
+        data: updateData,
+        include: { user: true }
       });
 
-      return ApiResponse.success(res, order, 'Статус оновлено');
+      // 🔔 Real-time: сповіщення про зміну статусу
+      if (status) {
+        await notificationService.orderStatusChanged(updatedOrder, status);
+        socketEvents.orderUpdated(updatedOrder);
+      }
+
+      return ApiResponse.success(res, updatedOrder, 'Статус оновлено');
     } catch (error) {
       next(error);
     }

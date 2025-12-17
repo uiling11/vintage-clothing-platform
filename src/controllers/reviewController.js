@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const ApiResponse = require('../utils/apiResponse');
 const { getPagination, getPaginationMeta } = require('../utils/helpers');
+const notificationService = require('../socket/notificationService');
 
 const reviewController = {
   async getByProduct(req, res, next) {
@@ -34,12 +35,25 @@ const reviewController = {
   async create(req, res, next) {
     try {
       const { productId, rating, comment } = req.body;
-      const userId = req.user?.id || 1;
+      const userId = req.user.userId;
+
+      // Отримуємо товар з продавцем
+      const product = await prisma.product.findUnique({
+        where: { id: parseInt(productId) },
+        select: { id: true, title: true, sellerId: true }
+      });
+
+      if (!product) {
+        return ApiResponse.notFound(res, 'Товар не знайдено');
+      }
 
       const review = await prisma.review.create({
         data: { userId, productId: parseInt(productId), rating: parseInt(rating), comment },
         include: { user: { select: { id: true, firstName: true, lastName: true } } }
       });
+
+      // 🔔 Real-time: сповіщення про новий відгук
+      await notificationService.newReview(review, product);
 
       return ApiResponse.created(res, review, 'Відгук додано');
     } catch (error) {

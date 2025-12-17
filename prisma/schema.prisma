@@ -21,13 +21,14 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  products    Product[]   @relation("SellerProducts")
-  orders      Order[]     @relation("BuyerOrders")
-  reviews     Review[]
-  favorites   Favorite[]
-  cartItems   CartItem[]
-  addresses   Address[]
-  files       File[]
+  products      Product[]       @relation("SellerProducts")
+  orders        Order[]         @relation("BuyerOrders")
+  reviews       Review[]
+  favorites     Favorite[]
+  cartItems     CartItem[]
+  addresses     Address[]
+  files         File[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -242,4 +243,38 @@ model File {
   user         User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@map("files")
+}
+
+model Notification {
+  id          Int                  @id @default(autoincrement())
+  userId      Int                  @map("user_id")
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?
+  isRead      Boolean              @default(false) @map("is_read")
+  priority    NotificationPriority @default(NORMAL)
+  createdAt   DateTime             @default(now()) @map("created_at")
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  ORDER_STATUS
+  NEW_PRODUCT
+  PRICE_DROP
+  NEW_REVIEW
+  NEW_MESSAGE
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }

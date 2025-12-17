@@ -1,6 +1,8 @@
 const prisma = require('../config/database');
 const ApiResponse = require('../utils/apiResponse');
 const { generateUniqueSlug, getPagination, getPaginationMeta } = require('../utils/helpers');
+const notificationService = require('../socket/notificationService');
+const socketEvents = require('../socket/events');
 
 const productController = {
   async getAll(req, res, next) {
@@ -82,7 +84,7 @@ const productController = {
   async create(req, res, next) {
     try {
       const { title, description, price, originalPrice, brand, size, color, material, condition, era, style, categoryId, quantity, images } = req.body;
-      const sellerId = req.user?.id || 1;
+      const sellerId = req.user.userId;
       const slug = generateUniqueSlug(title);
 
       const product = await prisma.product.create({
@@ -108,6 +110,10 @@ const productController = {
         include: { category: true, images: true }
       });
 
+      // 🔔 Real-time: новий товар в категорії
+      socketEvents.productCreated(product);
+      await notificationService.newProductInCategory(product);
+
       return ApiResponse.created(res, product, 'Товар створено');
     } catch (error) {
       next(error);
@@ -117,6 +123,16 @@ const productController = {
   async update(req, res, next) {
     try {
       const { id } = req.params;
+      
+      // Отримуємо старий товар для порівняння ціни
+      const oldProduct = await prisma.product.findUnique({
+        where: { id: parseInt(id) }
+      });
+
+      if (!oldProduct) {
+        return ApiResponse.notFound(res, 'Товар не знайдено');
+      }
+
       const updateData = { ...req.body };
       delete updateData.sellerId;
       delete updateData.images;
@@ -132,6 +148,14 @@ const productController = {
         include: { category: true, images: true }
       });
 
+      // 🔔 Real-time: оновлення товару
+      socketEvents.productUpdated(product);
+
+      // Якщо ціна знизилась - сповіщаємо підписників
+      if (updateData.price && updateData.price < parseFloat(oldProduct.price)) {
+        await notificationService.priceDropped(product, parseFloat(oldProduct.price), updateData.price);
+      }
+
       return ApiResponse.success(res, product, 'Товар оновлено');
     } catch (error) {
       next(error);
@@ -141,7 +165,20 @@ const productController = {
   async delete(req, res, next) {
     try {
       const { id } = req.params;
+      
+      const product = await prisma.product.findUnique({
+        where: { id: parseInt(id) }
+      });
+
+      if (!product) {
+        return ApiResponse.notFound(res, 'Товар не знайдено');
+      }
+
       await prisma.product.delete({ where: { id: parseInt(id) } });
+
+      // 🔔 Real-time: товар видалено
+      socketEvents.productDeleted(parseInt(id), product.categoryId);
+
       return ApiResponse.success(res, null, 'Товар видалено');
     } catch (error) {
       next(error);
