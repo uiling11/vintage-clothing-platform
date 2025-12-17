@@ -1,0 +1,93 @@
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🌱 Заповнення бази даних...');
+
+  // Очищення
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.review.deleteMany();
+  await prisma.favorite.deleteMany();
+  await prisma.cartItem.deleteMany();
+  await prisma.productImage.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.address.deleteMany();
+  await prisma.user.deleteMany();
+
+  const hashedPassword = await bcrypt.hash('password123', 10);
+
+  // Користувачі
+  const admin = await prisma.user.create({
+    data: { email: 'admin@vintage.com', password: hashedPassword, firstName: 'Адмін', lastName: 'Системи', role: 'ADMIN' }
+  });
+
+  const seller = await prisma.user.create({
+    data: {
+      email: 'seller@vintage.com', password: hashedPassword, firstName: 'Олена', lastName: 'Продавець', role: 'SELLER',
+      addresses: { create: { city: 'Київ', street: 'вул. Хрещатик', building: '1', postalCode: '01001', isDefault: true } }
+    }
+  });
+
+  const buyer = await prisma.user.create({
+    data: {
+      email: 'buyer@vintage.com', password: hashedPassword, firstName: 'Іван', lastName: 'Покупець', role: 'USER',
+      addresses: { create: { city: 'Львів', street: 'пл. Ринок', building: '5', postalCode: '79000', isDefault: true } }
+    }
+  });
+
+  // Категорії
+  const women = await prisma.category.create({ data: { name: 'Жіночий одяг', slug: 'women', description: 'Вінтажний жіночий одяг' } });
+  const men = await prisma.category.create({ data: { name: 'Чоловічий одяг', slug: 'men', description: 'Вінтажний чоловічий одяг' } });
+  const accessories = await prisma.category.create({ data: { name: 'Аксесуари', slug: 'accessories', description: 'Вінтажні аксесуари' } });
+  
+  const dresses = await prisma.category.create({ data: { name: 'Сукні', slug: 'dresses', parentId: women.id } });
+  const jackets = await prisma.category.create({ data: { name: 'Куртки', slug: 'jackets', parentId: men.id } });
+
+  // Товари
+  await prisma.product.create({
+    data: {
+      title: 'Вінтажна шовкова сукня 70-х', slug: 'vintage-silk-dress-70s',
+      description: 'Розкішна шовкова сукня в стилі 70-х років',
+      price: 2500.00, brand: 'Christian Dior', size: 'M', color: 'Бежевий',
+      material: 'Шовк', condition: 'EXCELLENT', era: '70s', style: 'Bohemian',
+      sellerId: seller.id, categoryId: dresses.id,
+      images: { create: [{ url: '/uploads/dress-1.jpg', isPrimary: true }] }
+    }
+  });
+
+  await prisma.product.create({
+    data: {
+      title: 'Джинсова куртка Levis 80-х', slug: 'levis-denim-jacket-80s',
+      description: 'Класична джинсова куртка з 80-х років',
+      price: 1800.00, brand: 'Levis', size: 'L', color: 'Синій',
+      material: 'Денім', condition: 'GOOD', era: '80s', style: 'Casual',
+      sellerId: seller.id, categoryId: jackets.id,
+      images: { create: [{ url: '/uploads/jacket-1.jpg', isPrimary: true }] }
+    }
+  });
+
+  await prisma.product.create({
+    data: {
+      title: 'Шкіряна сумка 60-х років', slug: 'leather-bag-60s',
+      description: 'Елегантна шкіряна сумка ручної роботи',
+      price: 1500.00, brand: 'Handmade', size: 'One size', color: 'Коричневий',
+      material: 'Натуральна шкіра', condition: 'GOOD', era: '60s',
+      sellerId: seller.id, categoryId: accessories.id,
+      images: { create: [{ url: '/uploads/bag-1.jpg', isPrimary: true }] }
+    }
+  });
+
+  console.log('✅ База даних заповнена!');
+  console.log('\n📋 Тестові акаунти:');
+  console.log('   admin@vintage.com / password123');
+  console.log('   seller@vintage.com / password123');
+  console.log('   buyer@vintage.com / password123');
+}
+
+main()
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());
