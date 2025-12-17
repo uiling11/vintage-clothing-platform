@@ -27,6 +27,14 @@ class ApiResponse {
     return this.error(res, message, 400, errors);
   }
 
+  static unauthorized(res, message = 'Не авторизовано') {
+    return this.error(res, message, 401);
+  }
+
+  static forbidden(res, message = 'Доступ заборонено') {
+    return this.error(res, message, 403);
+  }
+
   static paginated(res, data, pagination, message = 'Успішно') {
     return res.status(200).json({
       success: true,

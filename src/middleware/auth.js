@@ -1,27 +1,37 @@
-const { ApiError } = require('../utils/ApiError');
+const { verifyAccessToken } = require('../utils/jwt');
+const ApiResponse = require('../utils/apiResponse');
 
-// Заглушка для аутентифікації (буде реалізовано в лабораторній 2)
 const authenticate = (req, res, next) => {
-  // Тимчасово: імітуємо авторизованого користувача
-  req.user = {
-    id: 'temp-user-id',
-    role: 'SELLER'
-  };
-  next();
-};
+  try {
+    const authHeader = req.headers.authorization;
 
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      throw ApiError.unauthorized('Необхідна авторизація');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return ApiResponse.unauthorized(res, 'Токен аутентифікації відсутній');
     }
-    
-    if (!roles.includes(req.user.role)) {
-      throw ApiError.forbidden('Недостатньо прав для цієї дії');
-    }
-    
+
+    const token = authHeader.substring(7);
+    const decoded = verifyAccessToken(token);
+
+    req.user = decoded;
     next();
-  };
+  } catch (error) {
+    return ApiResponse.unauthorized(res, 'Недійсний або прострочений токен');
+  }
 };
 
-module.exports = { authenticate, authorize };
+const optionalAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const decoded = verifyAccessToken(token);
+      req.user = decoded;
+    }
+    next();
+  } catch (error) {
+    next();
+  }
+};
+
+module.exports = { authenticate, optionalAuth };
